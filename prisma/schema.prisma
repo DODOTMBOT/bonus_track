@@ -1,0 +1,59 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  login     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+}
+
+model Restaurant {
+  id               Int             @id @default(autoincrement())
+  name             String
+  address          String
+  manager          String
+  territorial      String
+  createdAt        DateTime        @default(now())
+  activeFundRuleId Int?            
+  bonusBlocks      BonusBlock[]
+  fundRules        BonusFundRule[] 
+}
+
+model BonusBlock {
+  id           Int            @id @default(autoincrement())
+  name         String
+  restaurantId Int
+  weight       Float?         @default(0) 
+  articles     BonusArticle[]
+  restaurant   Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+}
+
+model BonusArticle {
+  id          Int        @id @default(autoincrement())
+  name        String
+  valueFormat String?    @default("decimal")
+  targetValue String?
+  minValue    String?
+  isStrict    Boolean    @default(false)
+  isMaxGoal   Boolean    @default(false)
+  weight      Float?     @default(0)
+  blockId     Int
+  block       BonusBlock @relation(fields: [blockId], references: [id], onDelete: Cascade)
+}
+
+model BonusFundRule {
+  id           Int        @id @default(autoincrement())
+  restaurantId Int
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  condition    String     
+  threshold    Float      
+  percent      Float      
+  baseValue    Float      
+}
