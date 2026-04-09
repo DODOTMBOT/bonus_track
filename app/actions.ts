@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
 // ==========================================
-// 1. ЭКШЕНЫ ДЛЯ ПОЛЬЗОВАТЕЛЕЙ
+// 1. ПОЛЬЗОВАТЕЛИ И РЕСТОРАНЫ
 // ==========================================
 export async function getUsers() {
   return await prisma.user.findMany({ orderBy: { createdAt: 'desc' } })
@@ -24,9 +24,6 @@ export async function deleteUser(id: number) {
   revalidatePath('/dashboard')
 }
 
-// ==========================================
-// 2. ЭКШЕНЫ ДЛЯ РЕСТОРАНОВ
-// ==========================================
 export async function getRestaurants() {
   return await prisma.restaurant.findMany({ orderBy: { name: 'asc' } })
 }
@@ -48,14 +45,43 @@ export async function deleteRestaurant(id: number) {
 }
 
 // ==========================================
-// 3. ЭКШЕНЫ ДЛЯ КОНСТРУКТОРА ПРЕМИЙ
+// 2. КОНСТРУКТОР ПРЕМИЙ (МАГИЯ СБОРКИ)
 // ==========================================
 export async function getBonusStructure(restaurantId: number) {
-  return await prisma.bonusBlock.findMany({
+  const blocks = await prisma.bonusBlock.findMany({
     where: { restaurantId },
-    include: { articles: true },
+    include: {
+      articles: {
+        include: {
+          metric: {
+            include: {
+              targets: { where: { restaurantId } } // Берем цели конкретного ресторана
+            }
+          }
+        }
+      }
+    },
     orderBy: { id: 'asc' }
-  })
+  });
+
+  // Возвращаем данные в плоском формате, чтобы не ломать клиентские компоненты
+  return blocks.map(block => ({
+    ...block,
+    articles: block.articles.map(art => {
+      const target = art.metric?.targets?.[0] || {};
+      return {
+        id: art.id,
+        metricId: art.metricId,
+        name: art.metric?.name || "Неизвестная метрика",
+        weight: art.weight,
+        targetValue: target.targetValue || "",
+        minValue: target.minValue || "",
+        isStrict: target.isStrict || false,
+        isMaxGoal: target.isMaxGoal || false,
+        valueFormat: target.valueFormat || "decimal",
+      };
+    })
+  }));
 }
 
 export async function createBonusBlock(formData: FormData) {
@@ -64,6 +90,28 @@ export async function createBonusBlock(formData: FormData) {
   if (!name || !restaurantId) return;
   await prisma.bonusBlock.create({ data: { name, restaurantId, weight: 0 } })
   revalidatePath('/dashboard/bonuses/settings')
+}
+
+export async function deleteBonusBlock(id: number) {
+  await prisma.bonusBlock.delete({ where: { id } })
+  revalidatePath('/dashboard/bonuses/settings')
+}
+
+export async function createBonusArticle(formData: FormData) {
+  const metricId = Number(formData.get('metricId'))
+  const blockId = Number(formData.get('blockId'))
+  if (!metricId || !blockId) return;
+  await prisma.bonusArticle.create({ data: { metricId, blockId } })
+  revalidatePath('/dashboard/bonuses/settings')
+  revalidatePath('/dashboard/bonuses/fund')
+  revalidatePath('/dashboard/bonuses/execution')
+}
+
+export async function deleteBonusArticle(id: number) {
+  await prisma.bonusArticle.delete({ where: { id } })
+  revalidatePath('/dashboard/bonuses/settings')
+  revalidatePath('/dashboard/bonuses/fund')
+  revalidatePath('/dashboard/bonuses/execution')
 }
 
 export async function updateBlockWeight(blockId: number, weight: number) {
@@ -78,43 +126,8 @@ export async function updateArticleWeight(articleId: number, weight: number) {
   revalidatePath('/dashboard/bonuses/fund');
 }
 
-export async function createBonusArticle(formData: FormData) {
-  const name = formData.get('name') as string
-  const blockId = Number(formData.get('blockId'))
-  if (!name || !blockId) return;
-  await prisma.bonusArticle.create({ data: { name, blockId } })
-  revalidatePath('/dashboard/bonuses/settings')
-}
-
-export async function updateArticleValues(formData: FormData) {
-  const id = Number(formData.get('id'));
-  const isStrict = formData.get('isStrict') === 'true';
-  if (!id) return;
-  await prisma.bonusArticle.update({
-    where: { id },
-    data: { 
-      valueFormat: String(formData.get('valueFormat') || "decimal"),
-      targetValue: String(formData.get('targetValue') || ""), 
-      minValue: isStrict ? null : String(formData.get('minValue') || ""), 
-      isStrict,
-      isMaxGoal: formData.get('isMaxGoal') === 'true'
-    }
-  });
-  revalidatePath('/dashboard/bonuses/settings');
-}
-
-export async function deleteBonusBlock(id: number) {
-  await prisma.bonusBlock.delete({ where: { id } })
-  revalidatePath('/dashboard/bonuses/settings')
-}
-
-export async function deleteBonusArticle(id: number) {
-  await prisma.bonusArticle.delete({ where: { id } })
-  revalidatePath('/dashboard/bonuses/settings')
-}
-
 // ==========================================
-// 4. СЕТКА ПРЕМИАЛЬНОГО ФОНДА
+// 3. ФОНД
 // ==========================================
 export async function getBonusFundRules(restaurantId: number) {
   return await prisma.bonusFundRule.findMany({
@@ -153,7 +166,7 @@ export async function setActiveFundRule(restaurantId: number, ruleId: number | n
 }
 
 // ==========================================
-// 5. ВЫПОЛНЕНИЕ KPI (ФАКТ)
+// 4. ВЫПОЛНЕНИЕ KPI (ФАКТ)
 // ==========================================
 export async function getBonusActuals(restaurantId: number, period: string) {
   return await prisma.bonusActual.findMany({
@@ -174,7 +187,7 @@ export async function saveBonusActual(restaurantId: number, articleId: number, p
 }
 
 // ==========================================
-// 6. ПОКАЗАТЕЛИ И МЕТРИКИ
+// 5. ПОКАЗАТЕЛИ И МЕТРИКИ
 // ==========================================
 export async function getMetrics() {
   return await prisma.metric.findMany({ orderBy: { id: 'desc' } });
@@ -192,26 +205,39 @@ export async function updateMetric(id: number, name: string) {
   await prisma.metric.update({ where: { id }, data: { name } });
   revalidatePath('/dashboard/metrics/list');
   revalidatePath('/dashboard/metrics/targets');
+  revalidatePath('/dashboard/bonuses/settings');
 }
 
 export async function deleteMetric(id: number) {
   await prisma.metric.delete({ where: { id } });
   revalidatePath('/dashboard/metrics/list');
   revalidatePath('/dashboard/metrics/targets');
+  revalidatePath('/dashboard/bonuses/settings');
 }
 
 export async function getMetricTargets(restaurantId: number) {
   return await prisma.metricTarget.findMany({ where: { restaurantId } });
 }
 
-export async function saveMetricTarget(restaurantId: number, metricId: number, value: string) {
+export async function updateMetricTargetValues(formData: FormData) {
+  const restaurantId = Number(formData.get('restaurantId'));
+  const metricId = Number(formData.get('metricId'));
+  const valueFormat = String(formData.get('valueFormat') || "decimal");
+  const targetValue = String(formData.get('targetValue') || "");
+  const isStrict = formData.get('isStrict') === 'true';
+  const minValue = isStrict ? null : String(formData.get('minValue') || "");
+  const isMaxGoal = formData.get('isMaxGoal') === 'true';
+
   if (!restaurantId || !metricId) return;
+
   await prisma.metricTarget.upsert({
-    where: {
-      restaurantId_metricId: { restaurantId, metricId }
-    },
-    update: { value },
-    create: { restaurantId, metricId, value }
+    where: { restaurantId_metricId: { restaurantId, metricId } },
+    update: { valueFormat, targetValue, minValue, isStrict, isMaxGoal },
+    create: { restaurantId, metricId, valueFormat, targetValue, minValue, isStrict, isMaxGoal }
   });
+  
   revalidatePath('/dashboard/metrics/targets');
+  revalidatePath('/dashboard/bonuses/settings');
+  revalidatePath('/dashboard/bonuses/execution');
+  revalidatePath('/dashboard/bonuses/fund');
 }

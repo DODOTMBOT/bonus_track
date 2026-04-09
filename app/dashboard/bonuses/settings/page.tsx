@@ -1,16 +1,19 @@
-import { getRestaurants, getBonusStructure } from '@/app/actions';
-import SettingsClient from './SettingsClient';
+import { getRestaurants, getBonusStructure, getMetrics } from '@/app/actions';
+import { SettingsClient } from './SettingsClient';
 
 type Props = {
   searchParams: Promise<{ resId?: string }>;
 };
 
-export default async function BonusSettingsPage({ searchParams }: Props) {
-  const params = await searchParams;
-  const restaurants = await getRestaurants();
+export default async function BonusSettingsPage(props: Props) {
+  const params = await props.searchParams;
+  const rawRestaurants = await getRestaurants();
+  const selectedResId = params.resId ? Number(params.resId) : (rawRestaurants[0]?.id || null);
   
-  const selectedResId = params.resId ? Number(params.resId) : (restaurants[0]?.id || null);
-  const structure = selectedResId ? await getBonusStructure(selectedResId) : [];
+  const [rawStructure, rawMetrics] = await Promise.all([
+    selectedResId ? getBonusStructure(selectedResId) : Promise.resolve([]),
+    getMetrics()
+  ]);
 
   return (
     <div className="max-w-6xl mx-auto space-y-10">
@@ -19,13 +22,14 @@ export default async function BonusSettingsPage({ searchParams }: Props) {
           Конструктор KPI
         </h1>
         <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.2em]">
-          Настройка показателей и целей объекта
+          Сборка показателей для объекта
         </p>
       </header>
 
       <SettingsClient 
-        restaurants={restaurants} 
-        initialStructure={structure} 
+        serializedRestaurants={JSON.stringify(rawRestaurants)} 
+        serializedStructure={JSON.stringify(rawStructure)} 
+        serializedMetrics={JSON.stringify(rawMetrics)}
         selectedResId={selectedResId}
       />
     </div>

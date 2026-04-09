@@ -25,7 +25,7 @@ model Restaurant {
   bonusBlocks      BonusBlock[]
   fundRules        BonusFundRule[] 
   actuals          BonusActual[]
-  metricTargets    MetricTarget[]  // НОВОЕ: Целевые показатели
+  metricTargets    MetricTarget[]  
 }
 
 model BonusBlock {
@@ -37,20 +37,6 @@ model BonusBlock {
   restaurant   Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 }
 
-model BonusArticle {
-  id          Int        @id @default(autoincrement())
-  name        String
-  valueFormat String?    @default("decimal")
-  targetValue String?
-  minValue    String?
-  isStrict    Boolean    @default(false)
-  isMaxGoal   Boolean    @default(false)
-  weight      Float?     @default(0)
-  blockId     Int
-  block       BonusBlock @relation(fields: [blockId], references: [id], onDelete: Cascade)
-  actuals     BonusActual[]
-}
-
 model BonusFundRule {
   id           Int        @id @default(autoincrement())
   restaurantId Int
@@ -59,6 +45,42 @@ model BonusFundRule {
   threshold    Float      
   percent      Float      
   baseValue    Float      
+}
+
+model Metric {
+  id        Int      @id @default(autoincrement())
+  name      String
+  targets   MetricTarget[]
+  articles  BonusArticle[] // Связь с блоками премий
+}
+
+model MetricTarget {
+  id           Int        @id @default(autoincrement())
+  restaurantId Int
+  metricId     Int
+
+  // Настройки цели переехали сюда
+  valueFormat  String?    @default("decimal")
+  targetValue  String?
+  minValue     String?
+  isStrict     Boolean    @default(false)
+  isMaxGoal    Boolean    @default(false)
+
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  metric       Metric     @relation(fields: [metricId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, metricId])
+}
+
+model BonusArticle {
+  id          Int        @id @default(autoincrement())
+  weight      Float?     @default(0)
+  blockId     Int
+  metricId    Int        // Теперь это ссылка на Метрику
+
+  block       BonusBlock @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  metric      Metric     @relation(fields: [metricId], references: [id], onDelete: Cascade)
+  actuals     BonusActual[]
 }
 
 model BonusActual {
@@ -72,25 +94,4 @@ model BonusActual {
   article      BonusArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
 
   @@unique([restaurantId, articleId, period]) 
-}
-
-// ===================================
-// НОВЫЕ ТАБЛИЦЫ ДЛЯ ПОКАЗАТЕЛЕЙ
-// ===================================
-model Metric {
-  id        Int      @id @default(autoincrement())
-  name      String
-  targets   MetricTarget[]
-}
-
-model MetricTarget {
-  id           Int        @id @default(autoincrement())
-  restaurantId Int
-  metricId     Int
-  value        String     // Целевое значение
-
-  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  metric       Metric     @relation(fields: [metricId], references: [id], onDelete: Cascade)
-
-  @@unique([restaurantId, metricId])
 }
