@@ -24,7 +24,8 @@ model Restaurant {
   activeFundRuleId Int?            
   bonusBlocks      BonusBlock[]
   fundRules        BonusFundRule[] 
-  actuals          BonusActual[]   // Связь с фактом
+  actuals          BonusActual[]
+  metricTargets    MetricTarget[]  // НОВОЕ: Целевые показатели
 }
 
 model BonusBlock {
@@ -47,7 +48,7 @@ model BonusArticle {
   weight      Float?     @default(0)
   blockId     Int
   block       BonusBlock @relation(fields: [blockId], references: [id], onDelete: Cascade)
-  actuals     BonusActual[] // Связь с фактом
+  actuals     BonusActual[]
 }
 
 model BonusFundRule {
@@ -60,17 +61,36 @@ model BonusFundRule {
   baseValue    Float      
 }
 
-// НОВАЯ ТАБЛИЦА: Фактические показатели за месяц
 model BonusActual {
   id           Int          @id @default(autoincrement())
   restaurantId Int
   articleId    Int
-  period       String       // Формат: "2026-04"
+  period       String       
   value        String
   
   restaurant   Restaurant   @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   article      BonusArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
 
-  // Защита: только одна запись факта на 1 статью в 1 месяц для 1 ресторана
   @@unique([restaurantId, articleId, period]) 
+}
+
+// ===================================
+// НОВЫЕ ТАБЛИЦЫ ДЛЯ ПОКАЗАТЕЛЕЙ
+// ===================================
+model Metric {
+  id        Int      @id @default(autoincrement())
+  name      String
+  targets   MetricTarget[]
+}
+
+model MetricTarget {
+  id           Int        @id @default(autoincrement())
+  restaurantId Int
+  metricId     Int
+  value        String     // Целевое значение
+
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  metric       Metric     @relation(fields: [metricId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, metricId])
 }

@@ -6,6 +6,7 @@ import { useState } from 'react';
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [isBonusOpen, setIsBonusOpen] = useState(pathname.includes('/bonuses'));
+  const [isMetricsOpen, setIsMetricsOpen] = useState(pathname.includes('/metrics'));
 
   const isActive = (path: string) => pathname === path;
 
@@ -32,6 +33,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <Link href="/dashboard/bonuses/settings" className={`block p-3 rounded-xl text-[13px] transition-all ${isActive('/dashboard/bonuses/settings') ? 'text-black font-bold' : 'text-gray-400 hover:text-black font-medium'}`}>Настройки премий</Link>
                 <Link href="/dashboard/bonuses/fund" className={`block p-3 rounded-xl text-[13px] transition-all ${isActive('/dashboard/bonuses/fund') ? 'text-black font-bold' : 'text-gray-400 hover:text-black font-medium'}`}>Премиальный фонд</Link>
                 <Link href="/dashboard/bonuses/execution" className={`block p-3 rounded-xl text-[13px] transition-all ${isActive('/dashboard/bonuses/execution') ? 'text-black font-bold' : 'text-gray-400 hover:text-black font-medium'}`}>Выполнение KPI</Link>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <button onClick={() => setIsMetricsOpen(!isMetricsOpen)} className={`w-full flex items-center justify-between p-3 rounded-xl transition-all text-sm ${isMetricsOpen || pathname.includes('/metrics') ? 'text-black font-bold' : 'text-gray-400 hover:text-black hover:bg-gray-50 font-medium'}`}>
+              <span>Показатели</span>
+              <span className={`text-[10px] transform transition-transform ${isMetricsOpen ? 'rotate-180' : ''}`}>▼</span>
+            </button>
+
+            {isMetricsOpen && (
+              <div className="pl-4 mt-1 space-y-1 border-l-2 border-gray-50 ml-3">
+                <Link href="/dashboard/metrics/list" className={`block p-3 rounded-xl text-[13px] transition-all ${isActive('/dashboard/metrics/list') ? 'text-black font-bold' : 'text-gray-400 hover:text-black font-medium'}`}>Метрики</Link>
+                <Link href="/dashboard/metrics/targets" className={`block p-3 rounded-xl text-[13px] transition-all ${isActive('/dashboard/metrics/targets') ? 'text-black font-bold' : 'text-gray-400 hover:text-black font-medium'}`}>Целевые показатели</Link>
               </div>
             )}
           </div>
